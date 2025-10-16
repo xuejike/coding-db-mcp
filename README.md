@@ -55,15 +55,13 @@ npx coding-db-mcp
 
 ```json
 {
-  "mcp": {
-    "services": [
-      {
-        "name": "database-query-service",
-        "command": "db-query-mcp",
-        "args": [],
-        "type": "stdio"
-      }
-    ]
+  "mcpServers": {
+    "database-query": {
+      "command": "coding-db-mcp",
+      "args": [
+        
+      ]
+    }
   }
 }
 ```
@@ -72,15 +70,13 @@ npx coding-db-mcp
 
 ```json
 {
-  "mcp": {
-    "services": [
-      {
-        "name": "database-query-service",
-        "command": "npx",
-        "args": ["coding-db-mcp"],
-        "type": "stdio"
-      }
-    ]
+  "mcpServers": {
+    "database-query": {
+      "command": "npx",
+      "args": [
+        "coding-db-mcp"
+      ]
+    }
   }
 }
 ```
