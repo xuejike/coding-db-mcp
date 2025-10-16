@@ -1,0 +1,54 @@
+{
+  "name": "@xuejike/coding-db-mcp",
+  "version": "1.0.1",
+  "description": "MCP (Model Context Protocol) service for querying multiple types of databases (MySQL, PostgreSQL, MSSQL, Oracle) via stdio transport",
+  "main": "index.js",
+  "bin": {
+    "db-query-mcp": "./bin/db-query-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "src/",
+    "mcp.full.config.js",
+    "db-query-tool.js",
+    "index.js",
+    "mcp-server.js"
+  ],
+  "scripts": {
+    "test": "node db-query-tool.test.js",
+    "test:readonly": "node test-readonly.js",
+    "test:mcp": "node test-mcp-service.js",
+    "start": "node mcp-server.js",
+    "example": "node example.js",
+    "dev": "nodemon mcp-server.js"
+  },
+  "keywords": [
+    "mcp",
+    "mysql",
+    "postgresql",
+    "mssql",
+    "oracle",
+    "database",
+    "stdio",
+    "model-context-protocol",
+    "readonly"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "ISC",
+  "dependencies": {
+    "mysql": "^2.18.1",
+    "mysql2": "^3.9.7",
+    "pg": "^8.11.0",
+    "oracledb": "^6.0.0",
+    "tedious": "^18.2.0",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "dotenv": "^16.0.0",
+    "nodemon": "^3.0.0"
+  },
+  "mcp": {
+    "transports": ["stdio"]
+  }
+}
