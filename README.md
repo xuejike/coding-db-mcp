@@ -2,6 +2,10 @@
 
 这是一个用于Coding Agent MCP 服务的数据库查询工具，可以通过提示词，从当前项目配置文件中读取数据库连接信息并连接多种类型的数据库（MySQL、PostgreSQL、MSSQL、Oracle）并执行 SQL 查询。**该工具运行在只读模式下，确保不会意外修改数据库中的数据**。
 
+<a href="https://glama.ai/mcp/servers/@xuejike/coding-db-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@xuejike/coding-db-mcp/badge" alt="Database Query Server MCP server" />
+</a>
+
 ## 功能特点
 
 - 支持连接多种数据库（MySQL、PostgreSQL、MSSQL、Oracle）
