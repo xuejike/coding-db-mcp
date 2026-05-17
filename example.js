@@ -7,7 +7,7 @@ const DatabaseQueryTool = require('./db-query-tool');
 async function example() {
   // 创建工具实例
   const tool = new DatabaseQueryTool();
-  
+
   // 配置参数
   const config = {
     host: 'localhost',
@@ -15,14 +15,15 @@ async function example() {
     user: 'your_username',
     pwd: 'your_password',
     db: 'your_database',
+    type: 'mysql',
     querySql: 'SELECT * FROM your_table LIMIT 10'
   };
-  
+
   try {
     // 执行查询
     console.log('正在执行数据库查询...');
     const result = await tool.execute(config);
-    
+
     if (result.success) {
       console.log('查询成功!');
       console.log(`返回 ${result.rowCount} 行数据`);

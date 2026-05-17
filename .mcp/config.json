@@ -1,7 +1,7 @@
 {
   "name": "数据库查询MCP服务",
   "version": "1.0.0",
-  "description": "一个通过Model Context Protocol提供MySQL数据库查询功能的服务",
+  "description": "一个通过Model Context Protocol提供多种数据库只读查询功能的服务",
   "transports": ["stdio"],
   "capabilities": {
     "tools": {
@@ -15,13 +15,13 @@
     },
     "logging": {
       "enabled": true,
-      "level": "info"
+      "defaultLevel": "info"
     }
   },
   "tools": [
     {
-      "name": "query_database",
-      "description": "执行MySQL数据库查询",
+      "name": "query_mysql",
+      "description": "执行MySQL数据库查询（只读模式）",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -47,14 +47,144 @@
           },
           "querySql": {
             "type": "string",
-            "description": "要执行的SQL查询语句"
+            "description": "要执行的SQL查询语句（仅支持SELECT等只读操作）"
           }
         },
         "required": ["host", "port", "user", "pwd", "db", "querySql"]
+      },
+      "annotations": {
+        "title": "MySQL数据库查询工具（只读）",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_postgresql",
+      "description": "执行PostgreSQL数据库查询（只读模式）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "数据库主机地址"
+          },
+          "port": {
+            "type": "integer",
+            "description": "数据库端口"
+          },
+          "user": {
+            "type": "string",
+            "description": "数据库用户名"
+          },
+          "pwd": {
+            "type": "string",
+            "description": "数据库密码"
+          },
+          "db": {
+            "type": "string",
+            "description": "数据库名称"
+          },
+          "querySql": {
+            "type": "string",
+            "description": "要执行的SQL查询语句（仅支持SELECT等只读操作）"
+          }
+        },
+        "required": ["host", "port", "user", "pwd", "db", "querySql"]
+      },
+      "annotations": {
+        "title": "PostgreSQL数据库查询工具（只读）",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_mssql",
+      "description": "执行MSSQL数据库查询（只读模式）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "数据库主机地址"
+          },
+          "port": {
+            "type": "integer",
+            "description": "数据库端口"
+          },
+          "user": {
+            "type": "string",
+            "description": "数据库用户名"
+          },
+          "pwd": {
+            "type": "string",
+            "description": "数据库密码"
+          },
+          "db": {
+            "type": "string",
+            "description": "数据库名称"
+          },
+          "querySql": {
+            "type": "string",
+            "description": "要执行的SQL查询语句（仅支持SELECT等只读操作）"
+          }
+        },
+        "required": ["host", "port", "user", "pwd", "db", "querySql"]
+      },
+      "annotations": {
+        "title": "MSSQL数据库查询工具（只读）",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_oracle",
+      "description": "执行Oracle数据库查询（只读模式）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "数据库主机地址"
+          },
+          "port": {
+            "type": "integer",
+            "description": "数据库端口"
+          },
+          "user": {
+            "type": "string",
+            "description": "数据库用户名"
+          },
+          "pwd": {
+            "type": "string",
+            "description": "数据库密码"
+          },
+          "db": {
+            "type": "string",
+            "description": "数据库名称"
+          },
+          "querySql": {
+            "type": "string",
+            "description": "要执行的SQL查询语句（仅支持SELECT等只读操作）"
+          }
+        },
+        "required": ["host", "port", "user", "pwd", "db", "querySql"]
+      },
+      "annotations": {
+        "title": "Oracle数据库查询工具（只读）",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
       }
     }
   ],
-  "instructions": "这是一个数据库查询服务。用户可以使用query_database工具连接MySQL数据库并执行SQL查询。请确保提供完整的连接参数和有效的SQL查询语句。",
+  "instructions": "这是一个只读的数据库查询服务。用户可以使用不同的数据库查询工具连接相应类型的数据库（MySQL、PostgreSQL、MSSQL、Oracle）并执行SELECT等只读SQL查询。禁止执行INSERT、UPDATE、DELETE、DROP等修改数据的操作。",
   "environmentVariables": [
     {
       "name": "DB_HOST",

@@ -13,7 +13,7 @@ const { DatabaseQueryTool } = require('../index');
 async function directUsageExample() {
   // 创建工具实例
   const tool = new DatabaseQueryTool();
-  
+
   // 模拟配置参数（使用无效的数据库连接以演示错误处理）
   const config = {
     host: 'localhost',
@@ -21,13 +21,14 @@ async function directUsageExample() {
     user: 'test_user',
     pwd: 'test_password',
     db: 'test_db',
+    type: 'mysql',
     querySql: 'SELECT * FROM users LIMIT 1'
   };
-  
+
   try {
     console.log('正在执行数据库查询...');
     const result = await tool.execute(config);
-    
+
     if (result.success) {
       console.log('查询成功!');
       console.log(`返回 ${result.rowCount} 行数据`);
@@ -47,25 +48,25 @@ console.log('\n=== 示例2: 作为MCP服务运行 ===');
 
 function mcpServiceExample() {
   console.log('启动MCP服务...');
-  
+
   // 创建MCP服务进程
   const server = spawn('node', ['mcp-server.js'], {
     cwd: process.cwd()
   });
-  
+
   // 监听服务的输出
   server.stdout.on('data', (data) => {
     console.log(`[MCP服务响应] ${data}`);
   });
-  
+
   server.stderr.on('data', (data) => {
     console.error(`[MCP服务错误] ${data}`);
   });
-  
+
   server.on('close', (code) => {
     console.log(`[MCP服务退出] 退出码: ${code}`);
   });
-  
+
   // 发送初始化请求
   const initializeRequest = {
     jsonrpc: "2.0",
@@ -80,10 +81,10 @@ function mcpServiceExample() {
       }
     }
   };
-  
+
   console.log('[发送] 初始化请求');
   server.stdin.write(JSON.stringify(initializeRequest) + '\n');
-  
+
   // 3秒后关闭服务
   setTimeout(() => {
     console.log('[示例完成] 关闭服务');
