@@ -437,14 +437,17 @@ function handleConfigAdd(alias, options) {
     process.exit(1);
   }
 
+  // 构造连接配置对象（db 可选，不指定时表示可访问该服务器所有数据库）
   const connectionConfig = {
     type: options.type,
     host: options.host,
     port: options.port,
     user: options.user,
-    pwd: password,
-    db: options.database
+    pwd: password
   };
+  if (options.database) {
+    connectionConfig.db = options.database;
+  }
 
   try {
     const configManager = new ConfigManager();
@@ -549,7 +552,7 @@ function handleConfigShow(alias) {
     console.log(`  端口:     ${config.port}`);
     console.log(`  用户名:   ${config.user}`);
     console.log(`  密码:     ****`);
-    console.log(`  数据库:   ${config.db}`);
+    console.log(`  数据库:   ${config.db || '（未指定，可访问所有库）'}`);
   } catch (error) {
     console.error(`错误: ${error.message}`);
     process.exit(1);
