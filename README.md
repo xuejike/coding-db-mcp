@@ -1,185 +1,217 @@
-# MCP 数据库查询工具
+# @xuejike/coding-db-mcp
 
-这是一个用于Coding Agent MCP 服务的数据库查询工具，可以通过提示词，从当前项目配置文件中读取数据库连接信息并连接多种类型的数据库（MySQL、PostgreSQL、MSSQL、Oracle）并执行 SQL 查询。**该工具运行在只读模式下，确保不会意外修改数据库中的数据**。
+一个面向 AI Agent 的只读数据库查询工具，同时支持 MCP（Model Context Protocol）协议接入和 CLI 命令行直接使用。
 
-## 功能特点
+适用于让 AI Agent（如 Cursor、Kiro、Claude Desktop 等）安全地查询数据库，或在终端中通过别名快速执行 SQL。
 
-- 支持连接多种数据库（MySQL、PostgreSQL、MSSQL、Oracle）
-- 执行自定义 SQL 查询（只读模式）
-- 自动阻止修改数据的操作（INSERT、UPDATE、DELETE等）
-- 返回结构化查询结果
-- 包含错误处理机制
-- 实现为 MCP stdio 服务
+## 核心特性
 
-## 安全特性
+- **只读安全** — 自动拦截 INSERT/UPDATE/DELETE/DROP 等写操作
+- **多数据库支持** — MySQL、PostgreSQL、MSSQL、Oracle
+- **别名配置** — 预存数据库连接，一个别名代替一堆参数
+- **两层配置** — 用户级（全局）+ 项目级，项目级优先
+- **密码加密** — AES-256-GCM 加密存储，配置文件泄露也不暴露密码
+- **双模式运行** — MCP stdio 服务（给 Agent 用）或 CLI 命令行（给人用）
 
-该工具具有以下安全保护措施：
-
-1. **只读模式**：自动检测并阻止任何修改数据的SQL操作
-2. **SQL语句检查**：只允许SELECT、SHOW、DESCRIBE等只读查询
-3. **错误处理**：对非法操作返回明确的错误信息
-
-## 安装说明
-
-### 方式一：从 npm 仓库进行全局安装
-
-您可以从 npm 仓库进行全局安装：
+## 安装
 
 ```bash
 npm install -g @xuejike/coding-db-mcp
 ```
 
-安装后，您可以通过以下命令启动服务：
-
-```bash
-db-query-mcp
-```
-
-### 方式二：使用 npx 运行（无需安装）
-
-您也可以直接使用 npx 运行此工具，无需预先安装：
+或用 npx 免安装运行：
 
 ```bash
 npx @xuejike/coding-db-mcp
 ```
 
-这种方式会在每次运行时临时下载并执行最新版本的工具。
+## 快速开始
 
-## 配置到 Agent 的 MCP 中
+### 1. 添加数据库连接
 
-要将此服务配置到 Agent 的 MCP 中，请按照以下步骤操作：
+```bash
+# 添加一个名为 mydb 的连接（保存到全局配置）
+db-query-mcp config add mydb \
+  --type mysql \
+  --host localhost \
+  --port 3306 \
+  --user root \
+  --password yourpass \
+  --database myapp \
+  --global
+```
 
-### 1. 配置 Agent 的 MCP 设置
+### 2. 执行查询
 
-在 Agent 的 MCP 配置中添加此服务。通常需要在 Agent 的配置文件中添加类似以下的配置：
+```bash
+db-query-mcp query --alias mydb -q "SELECT * FROM users LIMIT 5"
+```
+
+### 3. 管理连接
+
+```bash
+# 查看所有配置
+db-query-mcp config list
+
+# 查看某个连接详情（密码显示为 ****）
+db-query-mcp config show mydb
+
+# 删除连接
+db-query-mcp config remove mydb --global
+```
+
+## 使用场景
+
+### 场景一：AI Agent 通过 MCP 协议查询数据库
+
+将工具配置为 Agent 的 MCP 服务，Agent 自动通过 `alias` 或直接参数查询数据库：
 
 ```json
 {
   "mcpServers": {
     "database-query": {
-      "command": "coding-db-mcp",
-      "args": [
-        
-      ]
+      "command": "db-query-mcp",
+      "args": []
     }
   }
 }
 ```
 
-如果使用 npx 方式，配置应为：
+npx 方式：
 
 ```json
 {
   "mcpServers": {
     "database-query": {
       "command": "npx",
-      "args": [
-        "@xuejike/coding-db-mcp"
-      ]
+      "args": ["@xuejike/coding-db-mcp"]
     }
   }
 }
 ```
 
-### 2. 配置数据库连接信息（可选）
+Agent 调用示例：
 
-数据库连接信息文件不是必需的，Agent 可以通过提示词从当前项目配置文件中自动读取数据库连接信息。
-
-例如，在 Spring Boot 项目中，Agent 可以直接读取 application-dev.yaml 文件中的数据库连接配置。
-
-如果需要手动配置数据库连接信息，可以创建 `.env` 文件：
-
-```bash
-cp .env.example .env
+```json
+{
+  "alias": "mydb",
+  "querySql": "SELECT COUNT(*) FROM orders"
+}
 ```
 
-在 `.env` 文件中设置以下变量：
-- `DB_HOST`: 数据库主机地址
-- `DB_PORT`: 数据库端口
-- `DB_USER`: 数据库用户名
-- `DB_PASSWORD`: 数据库密码
-- `DB_NAME`: 数据库名称
+Agent 也可以不用别名，直接传完整连接参数（向后兼容）。
 
-### 3. 启动 Agent
+### 场景二：在 Steering 文档中指导 Agent 用 CLI 查询
 
-启动 Agent 并确保 MCP 服务正确加载。Agent 现在应该能够使用以下四个数据库查询工具：
-- `query_mysql`: MySQL 数据库查询工具
-- `query_postgresql`: PostgreSQL 数据库查询工具
-- `query_mssql`: MSSQL 数据库查询工具
-- `query_oracle`: Oracle 数据库查询工具
+在项目的 steering 或提示文件中告诉 Agent 用命令行查：
 
-当 Agent 需要查询数据库时，它会自动调用相应的工具并传入必要的参数（主机、端口、用户名、密码、数据库名和SQL查询语句）。
+```bash
+db-query-mcp query --alias prod-db -q "SELECT * FROM db_order_tracking WHERE sales_order_no = '12345'"
+```
 
-## MCP工具说明
+适合不方便配 MCP 服务、或在脚本中直接调用的场景。
 
-当作为MCP服务运行时，该服务提供以下工具：
+### 场景三：开发/运维人员终端快速查询
 
-### query_mysql
+预配置好各环境连接后，日常查询不用再记 host/port/password：
 
-执行MySQL数据库查询（只读模式）
+```bash
+# 查生产
+db-query-mcp query --alias prod -q "SELECT * FROM users WHERE id = 100"
 
-参数：
-- `host` (string): 数据库主机地址
-- `port` (integer): 数据库端口
-- `user` (string): 数据库用户名
-- `pwd` (string): 数据库密码
-- `db` (string): 数据库名称
-- `querySql` (string): 要执行的SQL查询语句（仅支持SELECT等只读操作）
+# 查测试
+db-query-mcp query --alias dev -q "SHOW TABLES"
+```
 
-### query_postgresql
+## CLI 命令参考
 
-执行PostgreSQL数据库查询（只读模式）
+```
+db-query-mcp [命令] [选项]
 
-参数：
-- `host` (string): 数据库主机地址
-- `port` (integer): 数据库端口
-- `user` (string): 数据库用户名
-- `pwd` (string): 数据库密码
-- `db` (string): 数据库名称
-- `querySql` (string): 要执行的SQL查询语句（仅支持SELECT等只读操作）
+命令:
+  start                  启动 MCP 服务（默认，无参数时执行）
+  query                  执行 SQL 查询
+  config add <alias>     添加连接配置
+  config remove <alias>  删除连接配置
+  config list            列出所有连接
+  config show <alias>    查看连接详情
+  test                   测试数据库连接
+  help                   显示帮助
+  version                显示版本
 
-### query_mssql
+query 选项:
+  --alias <alias>        使用预配置的别名
+  -q, --query <sql>      SQL 语句
+  -t, --type <type>      数据库类型
+  -H, --host <host>      主机
+  -P, --port <port>      端口
+  -u, --user <user>      用户名
+  -p, --password <pwd>   密码
+  -d, --database <db>    数据库名
 
-执行MSSQL数据库查询（只读模式）
+config add 选项:
+  --type <type>          数据库类型 (mysql/postgresql/oracle/mssql)
+  --host <host>          主机地址
+  --port <port>          端口
+  --user <user>          用户名
+  --password <pwd>       密码
+  --password-stdin       从 stdin 读取密码（不留命令行历史）
+  --database <db>        数据库名
+  --global               保存到用户级配置（默认项目级）
+```
 
-参数：
-- `host` (string): 数据库主机地址
-- `port` (integer): 数据库端口
-- `user` (string): 数据库用户名
-- `pwd` (string): 数据库密码
-- `db` (string): 数据库名称
-- `querySql` (string): 要执行的SQL查询语句（仅支持SELECT等只读操作）
+## 配置文件
 
-### query_oracle
+| 层级 | 路径 | 说明 |
+|------|------|------|
+| 用户级 | `~/.coding-db-mcp/config.json` | 全局共享，适合放各环境连接 |
+| 项目级 | `.db-mcp.json`（项目根目录） | 仅当前项目，优先级高于用户级 |
 
-执行Oracle数据库查询（只读模式）
+建议把 `.db-mcp.json` 加入 `.gitignore`。
 
-参数：
-- `host` (string): 数据库主机地址
-- `port` (integer): 数据库端口
-- `user` (string): 数据库用户名
-- `pwd` (string): 数据库密码
-- `db` (string): 数据库名称
-- `querySql` (string): 要执行的SQL查询语句（仅支持SELECT等只读操作）
+配置文件格式：
+
+```json
+{
+  "version": "1.0",
+  "connections": {
+    "mydb": {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "user": "root",
+      "pwd": "enc:v1:<iv>:<authTag>:<ciphertext>",
+      "db": "myapp"
+    }
+  }
+}
+```
+
+密码自动加密存储（`enc:v1:` 前缀），密钥通过本机用户信息派生，换机器无法解密。
+
+## MCP 工具参数
+
+四个工具（`query_mysql`、`query_postgresql`、`query_mssql`、`query_oracle`）共享同一参数结构：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `alias` | string | 否 | 连接别名，指定后连接参数可省略 |
+| `host` | string | 条件 | 无 alias 时必填 |
+| `port` | integer | 条件 | 无 alias 时必填 |
+| `user` | string | 条件 | 无 alias 时必填 |
+| `pwd` | string | 条件 | 无 alias 时必填 |
+| `db` | string | 条件 | 无 alias 时必填 |
+| `querySql` | string | **是** | SQL 查询语句 |
+
+直接参数可覆盖 alias 中的对应字段（如用 alias 连接但切换到另一个 database）。
 
 ## 安全说明
 
-1. 该工具运行在只读模式下，自动阻止任何修改数据的SQL操作
-2. 建议限制数据库用户权限，避免使用具有管理员权限的账户
-3. 不要在代码中硬编码数据库凭证
-4. 生产环境中应启用SSL连接
+1. 只允许 SELECT/SHOW/DESCRIBE/EXPLAIN 等只读操作
+2. 密码 AES-256-GCM 加密存储，配置文件权限 `0600`
+3. 支持 `--password-stdin` 避免密码出现在 shell 历史
+4. 建议数据库账号仅授予只读权限
 
-## 错误处理
+## License
 
-工具会返回结构化的错误信息，包括：
-- `success`: 布尔值，表示查询是否成功
-- `error`: 错误消息
-- `code`: 错误代码
-
-## 返回格式
-
-成功的查询将返回以下结构：
-- `success`: true
-- `data`: 查询结果数组
-- `columns`: 列信息数组
-- `rowCount`: 返回行数
+ISC
