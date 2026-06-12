@@ -52,6 +52,18 @@ setTimeout(() => {
   server.stdin.write(JSON.stringify(initializedNotification) + '\n');
 }, 1000);
 
+// 发送工具列表请求
+setTimeout(() => {
+  const listToolsRequest = {
+    jsonrpc: "2.0",
+    id: 2,
+    method: "tools/list"
+  };
+  
+  console.log('[发送] 工具列表请求');
+  server.stdin.write(JSON.stringify(listToolsRequest) + '\n');
+}, 1500);
+
 // 发送工具调用请求
 setTimeout(() => {
   const callToolRequest = {
@@ -59,7 +71,7 @@ setTimeout(() => {
     id: 3,
     method: "tools/call",
     params: {
-      name: "query_database",
+      name: "query_mysql",
       arguments: {
         host: "localhost",
         port: 3306,

@@ -1,6 +1,6 @@
 {
   "name": "@xuejike/coding-db-mcp",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "MCP (Model Context Protocol) service for querying multiple types of databases (MySQL, PostgreSQL, MSSQL, Oracle) via stdio transport",
   "main": "index.js",
   "bin": {
@@ -37,6 +37,7 @@
   "author": "Your Name <your.email@example.com>",
   "license": "ISC",
   "dependencies": {
+      "dotenv": "^16.0.0",
     "mysql": "^2.18.1",
     "mysql2": "^3.9.7",
     "pg": "^8.11.0",

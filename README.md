@@ -26,7 +26,7 @@
 您可以从 npm 仓库进行全局安装：
 
 ```bash
-npm install -g coding-db-mcp
+npm install -g @xuejike/coding-db-mcp
 ```
 
 安装后，您可以通过以下命令启动服务：
@@ -40,7 +40,7 @@ db-query-mcp
 您也可以直接使用 npx 运行此工具，无需预先安装：
 
 ```bash
-npx coding-db-mcp
+npx @xuejike/coding-db-mcp
 ```
 
 这种方式会在每次运行时临时下载并执行最新版本的工具。
@@ -74,7 +74,7 @@ npx coding-db-mcp
     "database-query": {
       "command": "npx",
       "args": [
-        "coding-db-mcp"
+        "@xuejike/coding-db-mcp"
       ]
     }
   }

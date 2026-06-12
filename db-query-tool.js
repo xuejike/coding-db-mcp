@@ -13,61 +13,50 @@ class DatabaseQueryTool {
    * @property {string} pwd - 数据库密码
    * @property {string} db - 数据库名称
    * @property {string} querySql - 要执行的SQL查询
+   * @property {string} [type=mysql] - 数据库类型 (mysql, postgresql, oracle, mssql)
    */
 
   /**
-   * 检查SQL查询是否为只读操作
-   * @param {string} sql - SQL查询语句
-   * @returns {boolean} 是否为只读操作
+   * 执行数据库查询的通用方法
+   * @param {ToolConfig} config - 工具配置参数
+   * @returns {Promise<Object>} 查询结果
    */
-  isReadOnlyQuery(sql) {
-    // 转换为小写以便比较
-    const lowerSql = sql.trim().toLowerCase();
+  async execute(config) {
+    const { type = 'mysql' } = config;
     
-    // 允许的只读操作关键词
-    const allowedPatterns = [
-      /^select/,
-      /^show/,
-      /^describe/,
-      /^desc/,
-      /^explain/,
-      /^use/
-    ];
-    
-    // 禁止的写操作关键词
-    const forbiddenPatterns = [
-      /insert/,
-      /update/,
-      /delete/,
-      /drop/,
-      /truncate/,
-      /alter/,
-      /create/,
-      /replace/,
-      /grant/,
-      /revoke/,
-      /commit/,
-      /rollback/,
-      /savepoint/,
-      /set/
-    ];
-    
-    // 检查是否包含禁止的关键词
-    for (const pattern of forbiddenPatterns) {
-      if (pattern.test(lowerSql)) {
-        return false;
-      }
+    switch (type.toLowerCase()) {
+      case 'mysql':
+        return await this.executeMySQL(config);
+      case 'postgresql':
+        return await this.executePostgreSQL(config);
+      case 'oracle':
+        return await this.executeOracle(config);
+      case 'mssql':
+        return await this.executeMSSQL(config);
+      default:
+        return {
+          success: false,
+          error: `Unsupported database type: ${type}`,
+          code: 'UNSUPPORTED_TYPE'
+        };
     }
-    
-    // 检查是否以允许的关键词开头
-    for (const pattern of allowedPatterns) {
-      if (pattern.test(lowerSql)) {
-        return true;
-      }
+  }
+
+  /**
+   * 设置连接为只读事务模式
+   * 通过数据库层面保证只能执行读操作，比SQL关键词匹配更可靠
+   * @param {Object} connection - 数据库连接
+   * @param {string} type - 数据库类型
+   */
+  async setReadOnly(connection, type) {
+    switch (type) {
+      case 'mysql':
+        await connection.execute('SET SESSION TRANSACTION READ ONLY');
+        break;
+      case 'postgresql':
+        await connection.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
+        break;
     }
-    
-    // 如果既不明确允许也不明确禁止，默认为不安全
-    return false;
   }
 
   /**
@@ -203,21 +192,14 @@ class DatabaseQueryTool {
    */
   async executeMySQL(config) {
     const { querySql } = config;
-    
-    // 检查是否为只读查询
-    if (!this.isReadOnlyQuery(querySql)) {
-      return {
-        success: false,
-        error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
-        code: "READONLY_VIOLATION"
-      };
-    }
-    
     let connection;
     
     try {
       // 建立数据库连接
       connection = await this.getMySQLConnection(config);
+      
+      // 设置只读事务，由数据库层面保证不会执行写操作
+      await this.setReadOnly(connection, 'mysql');
       
       // 执行查询
       const result = await this.executeMySQLQuery(connection, querySql);
@@ -230,7 +212,15 @@ class DatabaseQueryTool {
         rowCount: result.rowCount
       };
     } catch (error) {
-      // 错误处理
+      // 如果是只读违规错误，返回友好提示
+      if (error.code === 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION' || error.errno === 1792) {
+        return {
+          success: false,
+          error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
+          code: "READONLY_VIOLATION"
+        };
+      }
+      // 其他错误
       return {
         success: false,
         error: error.message,
@@ -249,21 +239,14 @@ class DatabaseQueryTool {
    */
   async executePostgreSQL(config) {
     const { querySql } = config;
-    
-    // 检查是否为只读查询
-    if (!this.isReadOnlyQuery(querySql)) {
-      return {
-        success: false,
-        error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
-        code: "READONLY_VIOLATION"
-      };
-    }
-    
     let connection;
     
     try {
       // 建立数据库连接
       connection = await this.getPostgreSQLConnection(config);
+      
+      // 设置只读事务，由数据库层面保证不会执行写操作
+      await this.setReadOnly(connection, 'postgresql');
       
       // 执行查询
       const result = await this.executePostgreSQLQuery(connection, querySql);
@@ -276,7 +259,15 @@ class DatabaseQueryTool {
         rowCount: result.rowCount
       };
     } catch (error) {
-      // 错误处理
+      // 如果是只读违规错误，返回友好提示
+      if (error.message && error.message.includes('read-only')) {
+        return {
+          success: false,
+          error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
+          code: "READONLY_VIOLATION"
+        };
+      }
+      // 其他错误
       return {
         success: false,
         error: error.message,
@@ -295,21 +286,14 @@ class DatabaseQueryTool {
    */
   async executeOracle(config) {
     const { querySql } = config;
-    
-    // 检查是否为只读查询
-    if (!this.isReadOnlyQuery(querySql)) {
-      return {
-        success: false,
-        error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
-        code: "READONLY_VIOLATION"
-      };
-    }
-    
     let connection;
     
     try {
       // 建立数据库连接
       connection = await this.getOracleConnection(config);
+      
+      // Oracle通过 SET TRANSACTION READ ONLY 设置只读
+      await connection.execute('SET TRANSACTION READ ONLY');
       
       // 执行查询
       const result = await this.executeOracleQuery(connection, querySql);
@@ -322,7 +306,15 @@ class DatabaseQueryTool {
         rowCount: result.rowCount
       };
     } catch (error) {
-      // 错误处理
+      // 如果是只读违规错误（ORA-01456），返回友好提示
+      if (error.message && (error.message.includes('ORA-01456') || error.message.includes('read-only'))) {
+        return {
+          success: false,
+          error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
+          code: "READONLY_VIOLATION"
+        };
+      }
+      // 其他错误
       return {
         success: false,
         error: error.message,
@@ -342,16 +334,7 @@ class DatabaseQueryTool {
   async executeMSSQL(config) {
     const { querySql } = config;
     
-    // 检查是否为只读查询
-    if (!this.isReadOnlyQuery(querySql)) {
-      return {
-        success: false,
-        error: "不允许执行非只读操作。仅支持SELECT、SHOW、DESCRIBE等查询语句。",
-        code: "READONLY_VIOLATION"
-      };
-    }
-    
-    // MSSQL support needs to be implemented
+    // MSSQL 暂未实现
     return {
       success: false,
       error: "MSSQL support needs to be implemented",
