@@ -196,6 +196,100 @@ module.exports = {
         idempotentHint: false,
         openWorldHint: false
       }
+    },
+
+    // Jenkins CI/CD 集成工具
+    jenkins_list_jobs: {
+      name: "jenkins_list_jobs",
+      description: "获取 Jenkins 所有 Job 列表",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "Jenkins 连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Jenkins 服务器地址，如 http://jenkins.example.com:8080" },
+          user: { type: "string", description: "Jenkins 用户名" },
+          token: { type: "string", description: "Jenkins API Token" }
+        },
+        required: []
+      },
+      annotations: {
+        title: "Jenkins Job 列表查询",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+
+    jenkins_build_job: {
+      name: "jenkins_build_job",
+      description: "启动 Jenkins Job 构建",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "Jenkins 连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Jenkins 服务器地址" },
+          user: { type: "string", description: "Jenkins 用户名" },
+          token: { type: "string", description: "Jenkins API Token" },
+          jobName: { type: "string", description: "要构建的 Job 名称" },
+          parameters: { type: "object", description: "构建参数（键值对，可选）" }
+        },
+        required: ["jobName"]
+      },
+      annotations: {
+        title: "Jenkins Job 构建触发",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+
+    jenkins_get_build_log: {
+      name: "jenkins_get_build_log",
+      description: "获取 Jenkins 构建日志",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "Jenkins 连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Jenkins 服务器地址" },
+          user: { type: "string", description: "Jenkins 用户名" },
+          token: { type: "string", description: "Jenkins API Token" },
+          jobName: { type: "string", description: "Job 名称" },
+          buildNumber: { type: ["integer", "string"], description: "构建号（默认 lastBuild）" }
+        },
+        required: ["jobName"]
+      },
+      annotations: {
+        title: "Jenkins 构建日志查询",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+
+    jenkins_get_job_info: {
+      name: "jenkins_get_job_info",
+      description: "获取 Jenkins Job 详细信息（参数定义、最近构建状态等），用于了解 Job 配置和所需构建参数",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "Jenkins 连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Jenkins 服务器地址" },
+          user: { type: "string", description: "Jenkins 用户名" },
+          token: { type: "string", description: "Jenkins API Token" },
+          jobName: { type: "string", description: "Job 名称（支持嵌套路径如 folder/subfolder/job）" }
+        },
+        required: ["jobName"]
+      },
+      annotations: {
+        title: "Jenkins Job 信息查询",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
     }
   },
 

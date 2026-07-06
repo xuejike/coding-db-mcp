@@ -10,10 +10,15 @@ const { Server: McpServer } = require("@modelcontextprotocol/sdk/server");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontextprotocol/sdk/types.js");
 const DatabaseQueryTool = require("./db-query-tool");
+const JenkinsTool = require("./lib/jenkins-tool");
+const { resolveJenkinsArguments } = require("./lib/resolve-jenkins-arguments");
 const config = require("./mcp.full.config.js");
 
 // 创建数据库查询工具实例
 const dbTool = new DatabaseQueryTool();
+
+// 创建 Jenkins 工具实例
+const jenkinsTool = new JenkinsTool();
 
 // 创建MCP服务
 const server = new McpServer(
@@ -48,6 +53,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case config.tools.query_oracle.name:
         result = await dbTool.executeOracle(request.params.arguments);
         break;
+
+      // Jenkins CI/CD 工具
+      case config.tools.jenkins_list_jobs.name:
+        result = await jenkinsTool.listJobs(resolveJenkinsArguments(request.params.arguments));
+        break;
+
+      case config.tools.jenkins_build_job.name:
+        result = await jenkinsTool.buildJob(resolveJenkinsArguments(request.params.arguments));
+        break;
+
+      case config.tools.jenkins_get_build_log.name:
+        result = await jenkinsTool.getBuildLog(resolveJenkinsArguments(request.params.arguments));
+        break;
+
+      case config.tools.jenkins_get_job_info.name:
+        result = await jenkinsTool.getJobInfo(resolveJenkinsArguments(request.params.arguments));
+        break;
         
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
@@ -80,7 +102,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       config.tools.query_mysql,
       config.tools.query_postgresql,
       config.tools.query_mssql,
-      config.tools.query_oracle
+      config.tools.query_oracle,
+      config.tools.jenkins_list_jobs,
+      config.tools.jenkins_build_job,
+      config.tools.jenkins_get_build_log,
+      config.tools.jenkins_get_job_info
     ]
   };
 });
