@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * bin/db-query-mcp.js CLI 命令解析单元测试
+ * bin/develop-tool.js CLI 命令解析单元测试
  * 测试 parseArgs 函数对 config 子命令和 --alias 选项的解析能力
  */
 
@@ -41,15 +41,15 @@ function assertEqual(actual, expected, msg = '') {
  */
 function mockParseArgs(args) {
   // 模拟 process.argv: [node路径, 脚本路径, ...用户参数]
-  process.argv = ['node', 'bin/db-query-mcp.js', ...args];
+  process.argv = ['node', 'bin/develop-tool.js', ...args];
   // 重新加载模块以使用新的 process.argv
-  delete require.cache[require.resolve('./db-query-mcp.js')];
-  const { parseArgs } = require('./db-query-mcp.js');
+  delete require.cache[require.resolve('./develop-tool.js')];
+  const { parseArgs } = require('./develop-tool.js');
   return parseArgs();
 }
 
 // ===== 测试开始 =====
-console.log('\nCLI 命令解析单元测试 (bin/db-query-mcp.js)\n');
+console.log('\nCLI 命令解析单元测试 (bin/develop-tool.js)\n');
 
 // === Task 5.1: config 子命令解析 ===
 console.log('config add 子命令解析:');

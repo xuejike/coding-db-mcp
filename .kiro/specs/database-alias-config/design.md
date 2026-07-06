@@ -2,9 +2,9 @@
 
 ## 概述
 
-为 `@xuejike/coding-db-mcp` 项目添加用户级配置文件功能，允许用户预先存储多个数据库连接配置，每个配置通过唯一别名（alias）标识。用户在使用 MCP 工具或 CLI 查询时，可以通过别名直接引用数据库连接，避免每次都传递完整的 host、port、user、pwd、db 等参数。
+为 `@xuejike/develop-tool` 项目添加用户级配置文件功能，允许用户预先存储多个数据库连接配置，每个配置通过唯一别名（alias）标识。用户在使用 MCP 工具或 CLI 查询时，可以通过别名直接引用数据库连接，避免每次都传递完整的 host、port、user、pwd、db 等参数。
 
-配置文件采用 JSON 格式存储在用户主目录 `~/.coding-db-mcp/config.json`，同时支持项目级配置文件 `.db-mcp.json`（项目根目录）。项目级配置优先于用户级配置，实现灵活的配置覆盖机制。
+配置文件采用 JSON 格式存储在用户主目录 `~/.develop-tool/config.json`，同时支持项目级配置文件 `.develop-tool.json`（项目根目录）。项目级配置优先于用户级配置，实现灵活的配置覆盖机制。
 
 ## 架构
 
@@ -13,8 +13,8 @@ graph TD
     A[MCP 工具调用 / CLI 命令] --> B{是否传入 alias?}
     B -->|是| C[ConfigManager]
     B -->|否| D[使用原有参数逻辑]
-    C --> E[加载项目级配置<br/>.db-mcp.json]
-    C --> F[加载用户级配置<br/>~/.coding-db-mcp/config.json]
+    C --> E[加载项目级配置<br/>.develop-tool.json]
+    C --> F[加载用户级配置<br/>~/.develop-tool/config.json]
     E --> G{项目级有该 alias?}
     G -->|是| H[返回项目级配置]
     G -->|否| I{用户级有该 alias?}
@@ -52,10 +52,10 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant User as 用户
-    participant CLI as db-query-mcp
+    participant CLI as develop-tool
     participant CM as ConfigManager
 
-    User->>CLI: db-query-mcp config add mydb --type mysql --host localhost ...
+    User->>CLI: develop-tool config add mydb --type mysql --host localhost ...
     CLI->>CM: addConnection("mydb", {...})
     CM->>CM: 验证配置参数
     CM->>CM: 写入配置文件
@@ -77,8 +77,8 @@ sequenceDiagram
 class ConfigManager {
   /**
    * @param {Object} options - 配置选项
-   * @param {string} [options.userConfigPath] - 用户级配置文件路径（默认 ~/.coding-db-mcp/config.json）
-   * @param {string} [options.projectConfigPath] - 项目级配置文件路径（默认 .db-mcp.json）
+   * @param {string} [options.userConfigPath] - 用户级配置文件路径（默认 ~/.develop-tool/config.json）
+   * @param {string} [options.projectConfigPath] - 项目级配置文件路径（默认 .develop-tool.json）
    */
   constructor(options = {})
 
@@ -156,14 +156,14 @@ class ConfigManager {
 
 ### 组件 3: CLI 配置子命令扩展
 
-**职责**: 在 `db-query-mcp` 命令行工具中增加配置管理命令
+**职责**: 在 `develop-tool` 命令行工具中增加配置管理命令
 
 ```javascript
 // 新增 CLI 子命令
-// db-query-mcp config add <alias> --type mysql --host ... --port ... --user ... --password ... --database ...
-// db-query-mcp config remove <alias>
-// db-query-mcp config list
-// db-query-mcp config show <alias>
+// develop-tool config add <alias> --type mysql --host ... --port ... --user ... --password ... --database ...
+// develop-tool config remove <alias>
+// develop-tool config list
+// develop-tool config show <alias>
 ```
 
 ## 数据模型
@@ -188,7 +188,7 @@ class ConfigManager {
 ```javascript
 /**
  * 配置文件结构
- * 存储路径: ~/.coding-db-mcp/config.json 或 .db-mcp.json
+ * 存储路径: ~/.develop-tool/config.json 或 .develop-tool.json
  */
 const configFileSchema = {
   // 配置文件版本号，便于后续迁移
