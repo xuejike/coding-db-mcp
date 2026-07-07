@@ -424,7 +424,7 @@ async function testConnection(options) {
 
     if (result.success) {
       console.log('✓ 数据库连接成功！');
-      console.log(`  返回数据: ${JSON.stringify(result.data)}`);
+      console.log(`  返回数据: ${result.markdown || '连接正常'}`);
     } else {
       console.log('✗ 数据库连接失败！');
       console.log(`  错误: ${result.error}`);
@@ -469,8 +469,16 @@ async function executeQuery(options) {
     if (result.success) {
       console.log('查询成功！');
       console.log(`返回 ${result.rowCount} 行数据`);
+      if (result.warning) {
+        console.log(result.warning);
+      }
       console.log('');
-      console.log(JSON.stringify(result.data, null, 2));
+      // 优先输出Markdown表格格式，方便AI识别
+      if (result.markdown) {
+        console.log(result.markdown);
+      } else {
+        console.log(JSON.stringify(result.data, null, 2));
+      }
     } else {
       console.log('查询失败！');
       console.log(`错误: ${result.error}`);

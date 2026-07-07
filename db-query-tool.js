@@ -3,6 +3,11 @@
  * 该工具连接到多种数据库并执行查询
  */
 
+// 查询结果最大行数限制
+const MAX_ROW_LIMIT = 200;
+// 查询结果行数警告阈值
+const ROW_WARNING_THRESHOLD = 100;
+
 class DatabaseQueryTool {
   /**
    * 工具配置参数
@@ -40,6 +45,113 @@ class DatabaseQueryTool {
           code: 'UNSUPPORTED_TYPE'
         };
     }
+  }
+
+  /**
+   * 为SQL语句添加行数限制
+   * 如果SQL中没有LIMIT/FETCH/ROWNUM等限制，则自动添加LIMIT限制
+   * @param {string} sql - 原始SQL语句
+   * @param {string} type - 数据库类型
+   * @returns {string} 添加了行数限制的SQL语句
+   */
+  applyRowLimit(sql, type) {
+    const trimmedSql = sql.trim().replace(/;+\s*$/, '');
+    const upperSql = trimmedSql.toUpperCase();
+
+    // 如果用户已经手动指定了LIMIT/FETCH/ROWNUM，则不重复添加
+    if (/\bLIMIT\s+\d+/i.test(trimmedSql) ||
+        /\bFETCH\s+(FIRST|NEXT)\s+\d+/i.test(trimmedSql) ||
+        /\bROWNUM\s*[<<=]\s*\d+/i.test(trimmedSql) ||
+        /\bTOP\s+\d+/i.test(trimmedSql)) {
+      return trimmedSql;
+    }
+
+    // 根据数据库类型添加对应的行数限制语法
+    switch (type) {
+      case 'mysql':
+      case 'postgresql':
+        return `${trimmedSql} LIMIT ${MAX_ROW_LIMIT + 1}`;
+      case 'oracle':
+        return `SELECT * FROM (${trimmedSql}) WHERE ROWNUM <= ${MAX_ROW_LIMIT + 1}`;
+      case 'mssql':
+        // MSSQL 使用 TOP，需要在 SELECT 后插入
+        if (upperSql.startsWith('SELECT')) {
+          return trimmedSql.replace(/^SELECT/i, `SELECT TOP ${MAX_ROW_LIMIT + 1}`);
+        }
+        return trimmedSql;
+      default:
+        return trimmedSql;
+    }
+  }
+
+  /**
+   * 将查询结果格式化为Markdown表格，方便AI识别
+   * @param {Array} data - 查询结果数据行
+   * @param {Array} columns - 列信息
+   * @returns {string} Markdown表格字符串
+   */
+  formatAsMarkdown(data, columns) {
+    if (!data || data.length === 0) {
+      return '_无数据_';
+    }
+
+    // 获取列名：优先从columns取，否则从数据第一行的key取
+    const headers = columns && columns.length > 0
+      ? columns.map(c => c.name)
+      : Object.keys(data[0]);
+
+    // 构建表头
+    const headerRow = '| ' + headers.join(' | ') + ' |';
+    const separatorRow = '| ' + headers.map(() => '---').join(' | ') + ' |';
+
+    // 构建数据行
+    const dataRows = data.map(row => {
+      const cells = headers.map(h => {
+        const val = row[h];
+        if (val === null || val === undefined) return '';
+        // 转字符串并转义管道符
+        return String(val).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      });
+      return '| ' + cells.join(' | ') + ' |';
+    });
+
+    return [headerRow, separatorRow, ...dataRows].join('\n');
+  }
+
+  /**
+   * 处理查询结果，检查行数并添加警告信息，返回Markdown格式
+   * @param {Object} result - 查询结果 {data, columns, rowCount}
+   * @returns {Object} 处理后的结果，包含Markdown格式的数据
+   */
+  processResultWithLimit(result) {
+    const response = {
+      success: true,
+      rowCount: 0,
+    };
+
+    let outputData;
+
+    if (result.rowCount > MAX_ROW_LIMIT) {
+      // 超过200条，截断数据并给出强制提醒
+      outputData = result.data.slice(0, MAX_ROW_LIMIT);
+      response.rowCount = MAX_ROW_LIMIT;
+      response.warning = `⚠️ 查询结果超过 ${MAX_ROW_LIMIT} 条，已强制截断为 ${MAX_ROW_LIMIT} 条。请添加更详细的查询条件（如WHERE子句、时间范围等）来缩小结果范围。`;
+      response.truncated = true;
+    } else if (result.rowCount > ROW_WARNING_THRESHOLD) {
+      // 超过100条但未超过200条，给出警告提醒
+      outputData = result.data;
+      response.rowCount = result.rowCount;
+      response.warning = `⚠️ 查询返回了 ${result.rowCount} 条数据，建议添加更详细的查询条件（如WHERE子句、时间范围等）来缩小结果范围，以获得更精确的结果。`;
+      response.truncated = false;
+    } else {
+      outputData = result.data;
+      response.rowCount = result.rowCount;
+    }
+
+    // 默认以Markdown表格格式返回数据
+    response.markdown = this.formatAsMarkdown(outputData, result.columns);
+
+    return response;
   }
 
   /**
@@ -201,16 +313,14 @@ class DatabaseQueryTool {
       // 设置只读事务，由数据库层面保证不会执行写操作
       await this.setReadOnly(connection, 'mysql');
       
-      // 执行查询
-      const result = await this.executeMySQLQuery(connection, querySql);
+      // 对SQL添加行数限制
+      const limitedSql = this.applyRowLimit(querySql, 'mysql');
       
-      // 返回结果
-      return {
-        success: true,
-        data: result.data,
-        columns: result.columns,
-        rowCount: result.rowCount
-      };
+      // 执行查询
+      const result = await this.executeMySQLQuery(connection, limitedSql);
+      
+      // 处理结果，检查行数并添加警告
+      return this.processResultWithLimit(result);
     } catch (error) {
       // 如果是只读违规错误，返回友好提示
       if (error.code === 'ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION' || error.errno === 1792) {
@@ -248,16 +358,14 @@ class DatabaseQueryTool {
       // 设置只读事务，由数据库层面保证不会执行写操作
       await this.setReadOnly(connection, 'postgresql');
       
-      // 执行查询
-      const result = await this.executePostgreSQLQuery(connection, querySql);
+      // 对SQL添加行数限制
+      const limitedSql = this.applyRowLimit(querySql, 'postgresql');
       
-      // 返回结果
-      return {
-        success: true,
-        data: result.data,
-        columns: result.columns,
-        rowCount: result.rowCount
-      };
+      // 执行查询
+      const result = await this.executePostgreSQLQuery(connection, limitedSql);
+      
+      // 处理结果，检查行数并添加警告
+      return this.processResultWithLimit(result);
     } catch (error) {
       // 如果是只读违规错误，返回友好提示
       if (error.message && error.message.includes('read-only')) {
@@ -295,16 +403,14 @@ class DatabaseQueryTool {
       // Oracle通过 SET TRANSACTION READ ONLY 设置只读
       await connection.execute('SET TRANSACTION READ ONLY');
       
-      // 执行查询
-      const result = await this.executeOracleQuery(connection, querySql);
+      // 对SQL添加行数限制
+      const limitedSql = this.applyRowLimit(querySql, 'oracle');
       
-      // 返回结果
-      return {
-        success: true,
-        data: result.data,
-        columns: result.columns,
-        rowCount: result.rowCount
-      };
+      // 执行查询
+      const result = await this.executeOracleQuery(connection, limitedSql);
+      
+      // 处理结果，检查行数并添加警告
+      return this.processResultWithLimit(result);
     } catch (error) {
       // 如果是只读违规错误（ORA-01456），返回友好提示
       if (error.message && (error.message.includes('ORA-01456') || error.message.includes('read-only'))) {

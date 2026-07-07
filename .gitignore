@@ -1,2 +1,10 @@
 /.idea/
 /node_modules/
+
+# 敏感配置文件
+.env
+.env.*
+!.env.example
+
+# 工具本地配置（可能含密码）
+.develop-tool.json
