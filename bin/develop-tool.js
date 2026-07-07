@@ -36,6 +36,8 @@ ${packageInfo.name} - ${packageInfo.description}
   jenkins list         查看 Jenkins Job 列表
   jenkins build <job>  启动 Jenkins Job 构建
   jenkins log <job>    查看 Jenkins 构建日志
+  log query            执行日志查询（支持 Loki / Elasticsearch）
+  log metadata         查询日志平台元数据（标签、索引等）
   version              显示版本信息
   help                 显示帮助信息
 
@@ -72,6 +74,24 @@ jenkins 选项:
   --build-number <num>    构建号（log 子命令，默认 lastBuild）
   --param <key=value>     构建参数（build 子命令，可多次指定）
 
+log 选项:
+  --alias <alias>         使用预配置的日志平台连接别名
+  --base-url <url>        日志平台地址（未指定 alias 时必填）
+  --user <user>           认证用户名（可选）
+  --password <pwd>        认证密码/Token（可选）
+  --password-stdin        从标准输入读取密码
+  -q, --query <expr>      查询表达式（LogQL / ES Query DSL）
+  --start <time>          起始时间（ISO 8601 或相对时间如 "1h", "30m", "7d"）
+  --end <time>            结束时间（默认 "now"）
+  --limit <n>             返回行数限制（默认 100，最大 1000）
+  --direction <dir>       排序方向: forward | backward（仅 Loki，默认 backward）
+  --index <pattern>       ES 索引模式（仅 Elasticsearch）
+  --type <type>           日志平台类型 (loki, elasticsearch)，使用 alias 时可省略
+  --metadata-type <type>  元数据类型 (labels, label_values, series, indices, mappings, field_caps)
+  --label <name>          标签名（配合 metadata-type=label_values 使用）
+  --match <selector>      流选择器（配合 metadata-type=series 使用）
+  --org-id <id>           Loki 租户 ID（可选）
+
 示例:
   # 启动MCP服务
   develop-tool start
@@ -105,6 +125,27 @@ jenkins 选项:
 
   # 查看构建日志
   develop-tool jenkins log my-job --alias my-jenkins --build-number 42
+
+  # 添加 Loki 日志平台配置
+  develop-tool config add prod-loki --type loki --base-url http://loki.prod:3100 --user admin --password secret
+
+  # 添加 Elasticsearch 日志平台配置（无认证模式）
+  develop-tool config add local-es --type elasticsearch --base-url http://localhost:9200
+
+  # 通过别名查询 Loki 日志
+  develop-tool log query --alias prod-loki -q '{app="payment-service"} |= "error"' --start 1h
+
+  # 直接参数模式查询 ES 日志
+  develop-tool log query --type elasticsearch --base-url http://localhost:9200 -q '{"match": {"level": "ERROR"}}' --index app-logs-* --start 24h --limit 50
+
+  # 查询 Loki 所有标签
+  develop-tool log metadata --alias prod-loki --metadata-type labels
+
+  # 查询指定标签的所有值
+  develop-tool log metadata --alias prod-loki --metadata-type label_values --label app
+
+  # 查询 ES 索引列表
+  develop-tool log metadata --alias prod-es --metadata-type indices
 `);
 }
 
@@ -129,9 +170,10 @@ function parseArgs() {
   };
 
   const argv = process.argv.slice(2);
-  const commands = ['start', 'test', 'query', 'config', 'jenkins', 'version', 'help'];
+  const commands = ['start', 'test', 'query', 'config', 'jenkins', 'log', 'version', 'help'];
   const configSubCommands = ['add', 'remove', 'list', 'show'];
   const jenkinsSubCommands = ['list', 'build', 'log', 'info'];
+  const logSubCommands = ['query', 'metadata'];
 
   let commandFound = false;
   let subCommandFound = false;
@@ -145,7 +187,9 @@ function parseArgs() {
         '-t', '--type', '-H', '--host', '-P', '--port',
         '-u', '--user', '-p', '--password', '-d', '--database',
         '-q', '--query', '-c', '--config', '--alias',
-        '--base-url', '--token', '--build-number', '--param'
+        '--base-url', '--token', '--build-number', '--param',
+        '--start', '--end', '--limit', '--direction', '--index',
+        '--metadata-type', '--label', '--match', '--org-id'
       ];
       if (optionsWithValue.includes(arg)) {
         i++;
@@ -195,6 +239,15 @@ function parseArgs() {
     if (args.command === 'jenkins' && subCommandFound &&
         args.subCommand === 'list' && !args.options.jenkinsFolderPath) {
       args.options.jenkinsFolderPath = arg;
+      continue;
+    }
+
+    // log 子命令识别
+    if (args.command === 'log' && !subCommandFound) {
+      if (logSubCommands.includes(arg)) {
+        args.subCommand = arg;
+        subCommandFound = true;
+      }
       continue;
     }
   }
@@ -271,6 +324,33 @@ function parseArgs() {
       case '--password-stdin':
         args.options.passwordStdin = true;
         break;
+      case '--start':
+        args.options.start = argv[++i];
+        break;
+      case '--end':
+        args.options.end = argv[++i];
+        break;
+      case '--limit':
+        args.options.limit = parseInt(argv[++i], 10);
+        break;
+      case '--direction':
+        args.options.direction = argv[++i];
+        break;
+      case '--index':
+        args.options.index = argv[++i];
+        break;
+      case '--metadata-type':
+        args.options.metadataType = argv[++i];
+        break;
+      case '--label':
+        args.options.label = argv[++i];
+        break;
+      case '--match':
+        args.options.match = argv[++i];
+        break;
+      case '--org-id':
+        args.options.orgId = argv[++i];
+        break;
     }
   }
 
@@ -315,10 +395,15 @@ async function startMcpServer() {
   const { resolveToolArguments } = require("../lib/resolve-tool-arguments.js");
   const JenkinsTool = require("../lib/jenkins-tool.js");
   const { resolveJenkinsArguments } = require("../lib/resolve-jenkins-arguments.js");
+  const LogQueryTool = require("../lib/log-query-tool.js");
+  const { resolveLogArguments } = require("../lib/resolve-log-arguments.js");
 
   const dbTool = new DatabaseQueryTool();
   // 创建 Jenkins 工具实例
   const jenkinsTool = new JenkinsTool();
+
+  // 创建日志查询工具实例
+  const logTool = new LogQueryTool();
 
   const server = new McpServer(
     {
@@ -367,6 +452,27 @@ async function startMcpServer() {
           result = await jenkinsTool.getJobInfo(resolveJenkinsArguments(request.params.arguments));
           break;
 
+        // 日志查询工具
+        case config.tools.query_loki.name: {
+          const logArgs = resolveLogArguments(request.params.arguments);
+          logArgs.type = 'loki';
+          result = await logTool.execute(logArgs);
+          break;
+        }
+
+        case config.tools.query_elasticsearch.name: {
+          const logArgs = resolveLogArguments(request.params.arguments);
+          logArgs.type = 'elasticsearch';
+          result = await logTool.execute(logArgs);
+          break;
+        }
+
+        case config.tools.query_log_metadata.name: {
+          const logArgs = resolveLogArguments(request.params.arguments);
+          result = await logTool.queryMetadata(logArgs);
+          break;
+        }
+
         default:
           throw new Error(`未知工具: ${request.params.name}`);
       }
@@ -393,7 +499,10 @@ async function startMcpServer() {
         config.tools.jenkins_list_jobs,
         config.tools.jenkins_build_job,
         config.tools.jenkins_get_build_log,
-        config.tools.jenkins_get_job_info
+        config.tools.jenkins_get_job_info,
+        config.tools.query_loki,
+        config.tools.query_elasticsearch,
+        config.tools.query_log_metadata
       ]
     };
   });
@@ -546,6 +655,29 @@ function handleConfigAdd(alias, options) {
         pwd: token
       };
     }
+  } else if (options.type === 'loki' || options.type === 'elasticsearch') {
+    // 日志平台类型配置（Loki / Elasticsearch）
+    if (!options.baseUrl) {
+      console.error('错误: 日志平台配置需要 --base-url 参数');
+      process.exit(1);
+    }
+
+    // 密码可选（支持无认证模式）
+    let password = options.password;
+    if (options.passwordStdin) {
+      password = readPasswordFromStdin();
+    }
+
+    connectionConfig = {
+      type: options.type,
+      baseUrl: options.baseUrl
+    };
+
+    // 可选字段：仅在提供时添加
+    if (options.user) connectionConfig.user = options.user;
+    if (password) connectionConfig.pwd = password;
+    if (options.orgId) connectionConfig.orgId = options.orgId;
+    if (options.index) connectionConfig.index = options.index;
   } else {
     // 数据库类型配置（保持原有逻辑）
     let password = options.password;
@@ -974,6 +1106,129 @@ async function handleJenkins(subCommand, options) {
 }
 
 /**
+ * 处理 log query 子命令
+ * 解析 CLI 参数，调用 LogQueryTool 执行日志查询，格式化输出到终端
+ * @param {Object} options - 解析后的 CLI 选项
+ */
+async function handleLogQuery(options) {
+  const LogQueryTool = require('../lib/log-query-tool.js');
+  const { resolveLogArguments } = require('../lib/resolve-log-arguments.js');
+
+  // 验证 query 参数必填
+  if (!options.query) {
+    console.error('错误: 请指定查询表达式 (-q 或 --query)');
+    process.exit(1);
+  }
+
+  // 从 CLI 选项构造工具参数对象
+  const toolArgs = {};
+  if (options.alias) toolArgs.alias = options.alias;
+  if (options.baseUrl) toolArgs.baseUrl = options.baseUrl;
+  if (options.user) toolArgs.user = options.user;
+  if (options.password) toolArgs.pwd = options.password;
+  if (options.query) toolArgs.query = options.query;
+  if (options.start) toolArgs.start = options.start;
+  if (options.end) toolArgs.end = options.end;
+  if (options.limit) toolArgs.limit = options.limit;
+  if (options.direction) toolArgs.direction = options.direction;
+  if (options.index) toolArgs.index = options.index;
+  if (options.type) toolArgs.type = options.type;
+
+  try {
+    // 解析连接参数（支持 alias 和直接参数）
+    const resolvedArgs = resolveLogArguments(toolArgs);
+
+    // 执行查询
+    const logTool = new LogQueryTool();
+    const result = await logTool.execute(resolvedArgs);
+
+    // 输出结果
+    if (result.success) {
+      if (result.warning) console.warn(result.warning);
+      console.log(result.markdown);
+      console.log(`\n共 ${result.rowCount} 条日志`);
+    } else {
+      console.error(`查询失败: ${result.error}`);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`错误: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * 处理 log metadata 子命令
+ * 查询日志平台元数据（标签、索引等）
+ * @param {Object} options - 解析后的 CLI 选项
+ */
+async function handleLogMetadata(options) {
+  const LogQueryTool = require('../lib/log-query-tool.js');
+  const { resolveLogArguments } = require('../lib/resolve-log-arguments.js');
+
+  // 验证 metadataType 参数必填
+  if (!options.metadataType) {
+    console.error('错误: 请指定元数据类型 (--metadata-type)');
+    process.exit(1);
+  }
+
+  // 从 CLI 选项构造工具参数对象
+  const toolArgs = {};
+  if (options.alias) toolArgs.alias = options.alias;
+  if (options.baseUrl) toolArgs.baseUrl = options.baseUrl;
+  if (options.user) toolArgs.user = options.user;
+  if (options.password) toolArgs.pwd = options.password;
+  if (options.type) toolArgs.type = options.type;
+  if (options.metadataType) toolArgs.metadataType = options.metadataType;
+  if (options.label) toolArgs.label = options.label;
+  if (options.match) toolArgs.match = options.match;
+  if (options.index) toolArgs.index = options.index;
+  if (options.start) toolArgs.start = options.start;
+  if (options.end) toolArgs.end = options.end;
+  if (options.orgId) toolArgs.orgId = options.orgId;
+
+  try {
+    // 解析连接参数（支持 alias 和直接参数）
+    const resolvedArgs = resolveLogArguments(toolArgs);
+
+    // 执行元数据查询
+    const logTool = new LogQueryTool();
+    const result = await logTool.queryMetadata(resolvedArgs);
+
+    // 输出结果
+    if (result.success) {
+      console.log(result.markdown);
+    } else {
+      console.error(`查询失败: ${result.error}`);
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`错误: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+/**
+ * 处理 log 命令路由
+ * @param {string} subCommand - 子命令 (query, metadata)
+ * @param {Object} options - CLI 选项
+ */
+async function handleLog(subCommand, options) {
+  switch (subCommand) {
+    case 'query':
+      await handleLogQuery(options);
+      break;
+    case 'metadata':
+      await handleLogMetadata(options);
+      break;
+    default:
+      console.error('错误: 请指定 log 子命令 (query, metadata)');
+      console.log('用法: develop-tool log <query|metadata> [选项]');
+      process.exit(1);
+  }
+}
+
+/**
  * 主函数
  */
 async function main() {
@@ -1001,6 +1256,9 @@ async function main() {
         break;
       case 'jenkins':
         await handleJenkins(subCommand, options);
+        break;
+      case 'log':
+        await handleLog(subCommand, options);
         break;
       default:
         console.error(`未知命令: ${command}`);

@@ -290,6 +290,93 @@ module.exports = {
         idempotentHint: true,
         openWorldHint: true
       }
+    },
+
+    // 日志查询工具
+    query_loki: {
+      name: "query_loki",
+      description: "执行 Loki 日志查询（只读模式），支持 LogQL 查询表达式",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "日志平台连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Loki 服务地址" },
+          user: { type: "string", description: "认证用户名" },
+          pwd: { type: "string", description: "认证密码/Token" },
+          query: { type: "string", description: "LogQL 查询表达式" },
+          start: { type: "string", description: "起始时间（ISO 8601 或相对时间如 '1h', '30m', '7d'）" },
+          end: { type: "string", description: "结束时间（默认 'now'）" },
+          limit: { type: "integer", description: "返回行数限制（默认 100，最大 1000）" },
+          direction: { type: "string", enum: ["forward", "backward"], description: "排序方向（默认 backward）" }
+        },
+        required: ["query"]
+      },
+      annotations: {
+        title: "Loki 日志查询工具（只读）",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+
+    query_elasticsearch: {
+      name: "query_elasticsearch",
+      description: "执行 Elasticsearch 日志查询（只读模式），支持 Query DSL JSON 或纯文本查询",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "日志平台连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "Elasticsearch 服务地址" },
+          user: { type: "string", description: "认证用户名" },
+          pwd: { type: "string", description: "认证密码/Token" },
+          index: { type: "string", description: "ES 索引名/模式（默认 _all）" },
+          query: { type: "string", description: "查询表达式（Query DSL JSON 或纯文本）" },
+          start: { type: "string", description: "起始时间（ISO 8601 或相对时间如 '1h', '30m', '7d'）" },
+          end: { type: "string", description: "结束时间（默认 'now'）" },
+          limit: { type: "integer", description: "返回行数限制（默认 100，最大 1000）" }
+        },
+        required: ["query"]
+      },
+      annotations: {
+        title: "Elasticsearch 日志查询工具（只读）",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+
+    query_log_metadata: {
+      name: "query_log_metadata",
+      description: "查询日志平台元数据（标签、索引等），AI 可通过此工具了解平台上可用的标签/索引信息以自主构建更精确的查询条件",
+      inputSchema: {
+        type: "object",
+        properties: {
+          alias: { type: "string", description: "日志平台连接别名（可选，指定后其他连接参数可省略）" },
+          baseUrl: { type: "string", description: "日志平台地址" },
+          user: { type: "string", description: "认证用户名" },
+          pwd: { type: "string", description: "认证密码/Token" },
+          metadataType: {
+            type: "string",
+            enum: ["labels", "label_values", "series", "indices", "mappings", "field_caps"],
+            description: "元数据类型。Loki: labels(标签列表), label_values(标签值), series(流信息)。ES: indices(索引列表), mappings(字段映射), field_caps(字段能力)"
+          },
+          label: { type: "string", description: "标签名（仅 label_values 类型需要）" },
+          match: { type: "string", description: "流选择器（仅 series 类型需要，如 '{app=\"svc\"}'）" },
+          index: { type: "string", description: "索引名/模式（ES mappings/field_caps 类型需要）" },
+          start: { type: "string", description: "起始时间（可选，用于限制元数据的时间范围）" },
+          end: { type: "string", description: "结束时间（可选）" }
+        },
+        required: ["metadataType"]
+      },
+      annotations: {
+        title: "日志平台元数据查询工具（只读）",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
     }
   },
 

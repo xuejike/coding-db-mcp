@@ -12,6 +12,8 @@ const { CallToolRequestSchema, ListToolsRequestSchema } = require("@modelcontext
 const DatabaseQueryTool = require("./db-query-tool");
 const JenkinsTool = require("./lib/jenkins-tool");
 const { resolveJenkinsArguments } = require("./lib/resolve-jenkins-arguments");
+const LogQueryTool = require("./lib/log-query-tool");
+const { resolveLogArguments } = require("./lib/resolve-log-arguments");
 const config = require("./mcp.full.config.js");
 
 // 创建数据库查询工具实例
@@ -19,6 +21,9 @@ const dbTool = new DatabaseQueryTool();
 
 // 创建 Jenkins 工具实例
 const jenkinsTool = new JenkinsTool();
+
+// 创建日志查询工具实例
+const logTool = new LogQueryTool();
 
 // 创建MCP服务
 const server = new McpServer(
@@ -70,6 +75,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case config.tools.jenkins_get_job_info.name:
         result = await jenkinsTool.getJobInfo(resolveJenkinsArguments(request.params.arguments));
         break;
+
+      // 日志查询工具
+      case config.tools.query_loki.name: {
+        const resolvedArgs = resolveLogArguments(request.params.arguments);
+        resolvedArgs.type = 'loki';
+        result = await logTool.execute(resolvedArgs);
+        break;
+      }
+
+      case config.tools.query_elasticsearch.name: {
+        const resolvedArgs = resolveLogArguments(request.params.arguments);
+        resolvedArgs.type = 'elasticsearch';
+        result = await logTool.execute(resolvedArgs);
+        break;
+      }
+
+      case config.tools.query_log_metadata.name: {
+        const resolvedArgs = resolveLogArguments(request.params.arguments);
+        result = await logTool.queryMetadata(resolvedArgs);
+        break;
+      }
         
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
@@ -106,7 +132,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       config.tools.jenkins_list_jobs,
       config.tools.jenkins_build_job,
       config.tools.jenkins_get_build_log,
-      config.tools.jenkins_get_job_info
+      config.tools.jenkins_get_job_info,
+      config.tools.query_loki,
+      config.tools.query_elasticsearch,
+      config.tools.query_log_metadata
     ]
   };
 });
