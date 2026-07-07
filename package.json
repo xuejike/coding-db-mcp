@@ -1,6 +1,6 @@
 {
   "name": "@xuejike/develop-tool",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MCP (Model Context Protocol) service for querying multiple types of databases (MySQL, PostgreSQL, MSSQL, Oracle) via stdio transport",
   "main": "index.js",
   "bin": {

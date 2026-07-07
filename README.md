@@ -34,7 +34,7 @@ npx @xuejike/develop-tool
 复制以下文本发送给 AI，即可让 AI 帮你完成安装配置：
 
 ```
-请阅读 https://raw.githubusercontent.com/xuejike/coding-db-mcp/main/AI_INSTALL.md 按照其中的指引帮我完成 @xuejike/develop-tool CLI 工具的安装和连接配置。
+请阅读 https://raw.githubusercontent.com/xuejike/coding-db-mcp/refs/heads/master/AI_INSTALL.md 按照其中的指引帮我完成 @xuejike/develop-tool CLI 工具的安装和连接配置。
 ```
 
 ## 快速开始
